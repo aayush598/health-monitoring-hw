@@ -59,5 +59,20 @@ def dashboard():
     conn.close()
     return render_template('dashboard.html', data=data)
 
+# API Endpoint to Fetch Latest Data for Real-Time Monitoring
+@app.route('/latest', methods=['GET'])
+def get_latest_data():
+    conn = sqlite3.connect('health_data.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM health_data ORDER BY timestamp DESC LIMIT 1")
+    data = cursor.fetchone()
+    conn.close()
+    
+    if data:
+        latest_data = {'id': data[0], 'heart_rate': data[1], 'spo2': data[2], 'temperature': data[3], 'timestamp': data[4]}
+        return jsonify(latest_data)
+    else:
+        return jsonify({'message': 'No data available'}), 404
+    
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
