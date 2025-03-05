@@ -1,6 +1,12 @@
 from flask import Flask, request, jsonify, render_template
 import sqlite3
 import datetime
+import json
+import os
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -87,6 +93,47 @@ def get_latest_data():
         return jsonify(latest_data)
     else:
         return jsonify({'message': 'No data available'}), 404
+    
+# API Endpoint for Graph Data
+@app.route('/graph_data', methods=['GET'])
+def graph_data():
+    conn = sqlite3.connect('health_data.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT timestamp, heart_rate, spo2, temperature FROM health_data ORDER BY timestamp DESC LIMIT 20")
+    data = cursor.fetchall()
+    conn.close()
+    
+    graph_data = {'timestamps': [row[0] for row in data],
+                  'heart_rate': [row[1] for row in data],
+                  'spo2': [row[2] for row in data],
+                  'temperature': [row[3] for row in data]}
+    return jsonify(graph_data)
+
+
+# API Endpoint for AI Health Insights
+@app.route('/health_insights', methods=['GET'])
+def health_insights():
+    conn = sqlite3.connect('health_data.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT heart_rate, spo2, temperature FROM health_data ORDER BY timestamp DESC LIMIT 10")
+    data = cursor.fetchall()
+    conn.close()
+    
+    health_summary = f"Recent health data: {json.dumps(data)}"
+    
+    gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    headers = {'Content-Type': 'application/json'}
+    payload = {
+        "contents": [{"parts": [{"text": f"Analyze the following health data and provide insights: {health_summary}"}]}]
+    }
+    
+    response = requests.post(gemini_url, headers=headers, json=payload)
+    
+    if response.status_code == 200:
+        insights = response.json()
+        return jsonify({'insights': insights})
+    else:
+        return jsonify({'error': 'Failed to fetch AI insights'}), 500
     
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
