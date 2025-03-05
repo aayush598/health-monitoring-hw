@@ -19,6 +19,17 @@ def init_db():
 
 init_db()
 
+# Function to check thresholds
+def check_thresholds(heart_rate, spo2, temperature):
+    alerts = []
+    if heart_rate < 50 or heart_rate > 120:
+        alerts.append(f'Abnormal heart rate detected: {heart_rate} BPM')
+    if spo2 < 90:
+        alerts.append(f'Low SpO₂ level detected: {spo2}%')
+    if temperature < 35.0 or temperature > 38.0:
+        alerts.append(f'Abnormal body temperature detected: {temperature}°C')
+    return alerts
+
 # API Endpoint to Receive Sensor Data
 @app.route('/upload', methods=['POST'])
 def upload_data():
@@ -28,6 +39,8 @@ def upload_data():
     temperature = data.get('temperature')
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    alerts = check_thresholds(heart_rate, spo2, temperature)
+
     conn = sqlite3.connect('health_data.db')
     cursor = conn.cursor()
     cursor.execute("INSERT INTO health_data (heart_rate, spo2, temperature, timestamp) VALUES (?, ?, ?, ?)",
@@ -35,7 +48,7 @@ def upload_data():
     conn.commit()
     conn.close()
 
-    return jsonify({'message': 'Data saved successfully'}), 201
+    return jsonify({'message': 'Data saved successfully', 'alerts': alerts}), 201
 
 # API Endpoint to Fetch Latest Data
 @app.route('/data', methods=['GET'])
@@ -70,6 +83,7 @@ def get_latest_data():
     
     if data:
         latest_data = {'id': data[0], 'heart_rate': data[1], 'spo2': data[2], 'temperature': data[3], 'timestamp': data[4]}
+        latest_data['alerts'] = check_thresholds(data[1], data[2], data[3])
         return jsonify(latest_data)
     else:
         return jsonify({'message': 'No data available'}), 404
